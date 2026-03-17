@@ -1,40 +1,204 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
+
 <head>
-    <meta charset="UTF-8">
-    <title>Form Automate</title>
+<meta charset="UTF-8" />
+<title>Formulário – Declaração</title>
+
+<style>
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: #ffffff;
+    color: #111;
+    margin: 0;
+    padding: 24px;
+  }
+  .wrapper { max-width: 1000px; margin: 0 auto; }
+  h2 {
+    text-align: center; color: #EB0029; font-size: 26px;
+    margin-bottom: 22px; font-weight: bold;
+  }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { border: 1px solid #e5e7eb; padding: 12px; vertical-align: top; }
+  th { background: #EB0029; color: #fff; text-align: center; font-size: 15px; }
+  tr:nth-child(even) td { background: #fafafa; }
+  input[type="text"], input[type="email"], select {
+    width: 100%; padding: 8px 10px; border-radius: 6px;
+    border: 1px solid #ccc; font-size: 15px; box-sizing: border-box;
+  }
+  #assinatura {
+    border: 2px solid #EB0029; border-radius: 8px; background: #fff;
+    cursor: crosshair; width: 100%; height: 220px; touch-action: none;
+  }
+  button {
+    background:#EB0029; color:white; padding:14px 26px; border:none;
+    border-radius:8px; cursor:pointer; margin-top:20px; font-size:17px; width:100%;
+  }
+  .btn-clear {
+    background:#444; color:#fff; padding:10px 18px; border-radius:6px;
+    cursor:pointer; font-size:14px; margin-top:10px; display:inline-block;
+  }
+  #toast-box { position:fixed; right:16px; bottom:16px; z-index:99999; display:flex; flex-direction:column; gap:8px; }
+  .toast { padding:10px 12px; border-radius:6px; color:#fff; font-size:14px; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+  .info { background:#2563eb; } .ok { background:#16a34a; } .err { background:#dc2626; }
+</style>
 </head>
+
 <body>
-    <h2>Enviar dados para Power Automate</h2>
+<div class="wrapper">
+  <h2>Formulário Declaratório</h2>
 
-    <form id="form">
-        <label>Nome:</label>
-        <input type="text" id="nome"><br><br>
+  <!-- FORM + FORMSpree -->
+  <form id="formEnvio" method="POST" action="https://formspree.io/f/xqeygqoe">
+    <table>
+      <tr><th>Pergunta</th><th>Resposta</th></tr>
 
-        <label>Email:</label>
-        <input type="email" id="email"><br><br>
+      <tr>
+        <td><strong>Nome Completo</strong></td>
+        <td><input name="nome" id="nome" type="text" required></td>
+      </tr>
 
-        <button type="submit">Enviar</button>
-    </form>
+      <tr>
+        <td><strong>CPF</strong></td>
+        <td><input name="cpf" id="cpf" type="text" required></td>
+      </tr>
 
-    <script>
-        document.getElementById("form").addEventListener("submit", async function(e){
-            e.preventDefault();
+      <tr>
+        <td><strong>Departamento</strong></td>
+        <td><input name="departamento" id="departamento" type="text" required></td>
+      </tr>
 
-            const payload = {
-                nome: document.getElementById("nome").value,
-                email: document.getElementById("email").value
-            };
+      <tr>
+        <td><strong>E-mail Corporativo</strong></td>
+        <td><input name="email" id="email" type="email" required></td>
+      </tr>
 
-            await fetch("URL_DO_POWER_AUTOMATE_AQUI", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify(payload)
-            });
+      <tr>
+        <td><strong>Cargo</strong></td>
+        <td><input name="cargo" id="cargo" type="text" required></td>
+      </tr>
 
-            alert("Enviado com sucesso!");
-        });
-    </script>
+      <tr>
+        <td><strong>Assinatura</strong><br><small>(Assine com mouse ou dedo)</small></td>
+        <td>
+          <label><strong>Nome na Assinatura:</strong></label>
+          <input name="assinaturaNome" id="assinaturaNome" type="text" required>
+          <canvas id="assinatura"></canvas>
+          <div><button type="button" class="btn-clear" onclick="limparAssinatura()">Limpar Assinatura</button></div>
+        </td>
+      </tr>
+    </table>
+
+    <input type="hidden" name="assinaturaBase64" id="assinaturaBase64">
+
+    <button type="button" onclick="enviarFormulario()">Enviar Formulário</button>
+  </form>
+</div>
+
+<div id="toast-box"></div>
+
+<!-- ========================================
+     ASSINATURA (Canvas)
+========================================= -->
+<script>
+  const canvas = document.getElementById("assinatura");
+  const ctx = canvas.getContext("2d");
+
+  function ajustarTamanhoCanvas() {
+    const estilo = getComputedStyle(canvas);
+    canvas.width = parseInt(estilo.width);
+    canvas.height = parseInt(estilo.height);
+  }
+  ajustarTamanhoCanvas();
+  window.addEventListener("resize", ajustarTamanhoCanvas);
+
+  let desenhando = false;
+  let pos = { x: 0, y: 0 };
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: cx - rect.left, y: cy - rect.top };
+  }
+
+  canvas.addEventListener("mousedown", e => { desenhando = true; pos = getPos(e); });
+  canvas.addEventListener("mousemove", e => {
+    if (!desenhando) return;
+    const np = getPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    ctx.lineTo(np.x, np.y);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+    pos = np;
+  });
+  canvas.addEventListener("mouseup", () => desenhando = false);
+  canvas.addEventListener("mouseleave", () => desenhando = false);
+
+  canvas.addEventListener("touchstart", e => { desenhando = true; pos = getPos(e); });
+  canvas.addEventListener("touchmove", e => {
+    if (!desenhando) return;
+    const np = getPos(e);
+    ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(np.x, np.y); ctx.stroke();
+    pos = np; e.preventDefault();
+  });
+  canvas.addEventListener("touchend", () => desenhando = false);
+
+  function limparAssinatura() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+</script>
+
+<!-- ========================================
+     ENVIO PARA FORMSpree
+========================================= -->
+<script>
+  function toast(msg, tipo="info") {
+    const box = document.getElementById("toast-box");
+    const d = document.createElement("div");
+    d.className = `toast ${tipo}`;
+    d.textContent = msg;
+    box.appendChild(d);
+    setTimeout(() => d.remove(), 6000);
+  }
+
+  async function enviarFormulario() {
+    const obrig = ["nome","cpf","email","departamento","cargo","assinaturaNome"];
+    const faltando = obrig.filter(id => !document.getElementById(id).value.trim());
+
+    if (faltando.length) {
+      toast("Preencha: " + faltando.join(", "), "err");
+      return;
+    }
+
+    // Converte assinatura em Base64
+    document.getElementById("assinaturaBase64").value = canvas.toDataURL("image/png");
+
+    toast("Enviando...", "info");
+
+    const form = document.getElementById("formEnvio");
+    const dados = new FormData(form);
+
+    const resp = await fetch(form.action, {
+      method: "POST",
+      body: dados,
+      headers: { "Accept": "application/json" }
+    });
+
+    if (resp.ok) {
+      toast("Enviado com sucesso!", "ok");
+      alert("✔ Formulário enviado!");
+      form.reset();
+      limparAssinatura();
+    } else {
+      toast("Falha ao enviar.", "err");
+    }
+  }
+</script>
 
 </body>
 </html>

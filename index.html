@@ -92,36 +92,6 @@
     margin-top: 8px;
     word-break: break-all;
   }
-
-  #toast-box {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    z-index: 99999;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .toast {
-    padding: 10px 12px;
-    border-radius: 6px;
-    color: #fff;
-    font-size: 14px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, .2);
-  }
-
-  .info {
-    background: #2563eb;
-  }
-
-  .ok {
-    background: #16a34a;
-  }
-
-  .err {
-    background: #dc2626;
-  }
 </style>
 </head>
 
@@ -131,9 +101,6 @@
 
   <form id="formEnvio" method="POST" action="https://formspree.io/f/xqeygqoe">
 
-    <!-- Campos ocultos para IP e device -->
-    <input type="hidden" name="ipPublico" id="ipPublico">
-    <input type="hidden" name="userAgent" id="userAgent">
     <input type="hidden" name="assinaturaHash" id="assinaturaHash">
 
     <table>
@@ -167,7 +134,6 @@
         <td><input name="cargo" id="cargo" type="text" required></td>
       </tr>
 
-      <!-- ASSINATURA CERTIFICADA -->
       <tr>
         <td><strong>Assinatura Certificada</strong></td>
         <td>
@@ -195,126 +161,47 @@
       </tr>
     </table>
 
-    <button type="button" onclick="enviarFormulario()">Enviar Formulário</button>
+    <button type="submit">Enviar Formulário</button>
   </form>
 </div>
 
-<div id="toast-box"></div>
-
 <script>
-// --- DATA ---
+// DATA E HORA FIXA
+const dataHora = new Date();
+const dataHoraISO = dataHora.toISOString();
 document.getElementById("prevData").textContent =
-  new Date().toLocaleString("pt-BR");
+  dataHora.toLocaleString("pt-BR");
 
-// --- CAPTURAR IP PÚBLICO ---
-async function obterIPPublico() {
-  try {
-    let resp = await fetch("https://api.ipify.org?format=json");
-    let data = await resp.json();
-    document.getElementById("ipPublico").value = data.ip;
-  } catch (e) {
-    console.error("Erro ao obter IP público:", e);
-  }
-}
-
-// Preencher o userAgent
-document.getElementById("userAgent").value = navigator.userAgent;
-
-// Chamar ao carregar
-obterIPPublico();
-
-// --- GERAR HASH ---
+// FUNÇÃO SHA-256
 async function gerarHash(texto) {
   const enc = new TextEncoder().encode(texto);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", enc);
-  return Array.from(new Uint8Array(hashBuffer))
+  const buffer = await crypto.subtle.digest("SHA-256", enc);
+  return [...new Uint8Array(buffer)]
     .map(b => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-async function atualizar() {
+// ATUALIZAR HASH
+async function atualizarHash() {
   const n = document.getElementById("assinaturaNome").value.trim();
   const c = document.getElementById("assinaturaCPF").value.trim();
-  const ip = document.getElementById("ipPublico").value;
-  const ua = document.getElementById("userAgent").value;
 
   document.getElementById("prevNome").textContent = n || "—";
   document.getElementById("prevCPF").textContent = c || "—";
 
-  if (n && c && ip) {
-    const base = n + c + new Date().toISOString() + ip + ua;
-    const hash = await gerarHash(base);
-    document.getElementById("hash").textContent = hash;
-    document.getElementById("assinaturaHash").value = hash;
-  }
+  if (!n || !c) return;
+
+  const base = `${n}|${c}|${dataHoraISO}`;
+  const hash = await gerarHash(base);
+
+  document.getElementById("hash").textContent = hash;
+  document.getElementById("assinaturaHash").value = hash;
 }
 
-document.getElementById("assinaturaNome").addEventListener("input", atualizar);
-document.getElementById("assinaturaCPF").addEventListener("input", atualizar);
+// EVENTOS
+document.getElementById("assinaturaNome").addEventListener("input", atualizarHash);
+document.getElementById("assinaturaCPF").addEventListener("input", atualizarHash);
 
-// --- TOAST ---
-function toast(msg, tipo = "info") {
-  const box = document.getElementById("toast-box");
-  const d = document.createElement("div");
-  d.className = `toast ${tipo}`;
-  d.textContent = msg;
-  box.appendChild(d);
-  setTimeout(() => d.remove(), 6000);
-}
-
-// --- BLOQUEIO OPCIONAL DE IP CORPORATIVO ---
-const ipPermitidos = [
-  // coloque aqui faixas ou IPs da sua empresa
-  // "200.201.", "187.44.", "170.75.120."
-];
-
-function validarIP() {
-  const ip = document.getElementById("ipPublico").value;
-  if (!ip) return true;
-
-  if (ipPermitidos.length === 0) return true;
-
-  const ok = ipPermitidos.some(faixa => ip.startsWith(faixa));
-
-  if (!ok) {
-    toast("IP não autorizado para envio.", "err");
-    return false;
-  }
-  return true;
-}
-
-// --- ENVIAR FORMULÁRIO ---
-async function enviarFormulario() {
-  const obrig = ["nome", "cpf", "email", "departamento", "cargo", "assinaturaNome", "assinaturaCPF"];
-  const faltando = obrig.filter(id => !document.getElementById(id).value.trim());
-
-  if (faltando.length) {
-    toast("Preencha: " + faltando.join(", "), "err");
-    return;
-  }
-
-  if (!validarIP()) return;
-
-  toast("Enviando...", "info");
-
-  const form = document.getElementById("formEnvio");
-  const dados = new FormData(form);
-
-  const resp = await fetch(form.action, {
-    method: "POST",
-    body: dados,
-    headers: { "Accept": "application/json" }
-  });
-
-  if (resp.ok) {
-    toast("Enviado com sucesso!", "ok");
-    alert("✔ Formulário enviado!");
-    form.reset();
-    document.getElementById("hash").textContent = "—";
-  } else {
-    toast("Falha ao enviar.", "err");
-  }
-}
 </script>
 
 </body>
